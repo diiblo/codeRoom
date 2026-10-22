@@ -1,0 +1,95 @@
+name: coderoom
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      target: development
+    init: true
+    user: "${CODEROOM_UID:-1000}:${CODEROOM_GID:-1000}"
+    working_dir: /workspace
+    environment:
+      NODE_ENV: development
+      CODE_ROOM_HOST: 0.0.0.0
+      CODE_ROOM_PORT: 3000
+      CODE_ROOM_DATA_DIR: /var/lib/coderoom
+      CODE_ROOM_WORKSPACES_DIR: /workspaces
+      CODE_ROOM_BROKER_URL: ${CODE_ROOM_BROKER_URL:-http://host.docker.internal:47321}
+      CODE_ROOM_BROKER_TOKEN: ${CODE_ROOM_BROKER_TOKEN:-}
+    ports:
+      - "127.0.0.1:${CODEROOM_API_PORT:-3000}:3000"
+    volumes:
+      - .:/workspace:delegated
+      - coderoom-node-modules:/workspace/node_modules
+      - ./.runtime/data:/var/lib/coderoom
+      - ./.runtime/workspaces:/workspaces
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Vite/Vitest écrivent des fichiers temporaires dans /workspace en mode dev.
+    read_only: false
+    tmpfs:
+      - /tmp
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+      target: development
+    init: true
+    user: "${CODEROOM_UID:-1000}:${CODEROOM_GID:-1000}"
+    working_dir: /workspace
+    environment:
+      NODE_ENV: development
+      VITE_API_ORIGIN: http://127.0.0.1:${CODEROOM_API_PORT:-3000}
+    ports:
+      - "127.0.0.1:${CODEROOM_WEB_PORT:-5173}:5173"
+    volumes:
+      - .:/workspace:delegated
+      - coderoom-node-modules:/workspace/node_modules
+    depends_on:
+      - api
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Vite écrit son cache et sa configuration temporaire dans le workspace.
+    read_only: false
+    tmpfs:
+      - /tmp
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+      target: development
+    init: true
+    network_mode: none
+    user: "${CODEROOM_UID:-1000}:${CODEROOM_GID:-1000}"
+    working_dir: /workspace
+    command: ["npm", "run", "worker:dev"]
+    environment:
+      NODE_ENV: development
+      CODE_ROOM_DATA_DIR: /var/lib/coderoom
+      CODE_ROOM_WORKSPACES_DIR: /workspaces
+      # Les CLI restent sur l'hôte ; aucun binaire ni socket privilégié n'est
+      # injecté dans le conteneur tant que le protocole d'adaptateur n'est pas validé.
+    volumes:
+      - .:/workspace:delegated
+      - coderoom-node-modules:/workspace/node_modules
+      - ./.runtime/data:/var/lib/coderoom
+      - ./.runtime/workspaces:/workspaces
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  coderoom-node-modules:

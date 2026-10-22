@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+.data/
+.runtime/*
+!.runtime/data/
+!.runtime/data/.gitkeep
+!.runtime/workspaces/
+!.runtime/workspaces/.gitkeep
+.env
+.env.*
+!.env.example
+*.log
